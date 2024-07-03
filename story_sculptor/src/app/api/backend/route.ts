@@ -3,160 +3,198 @@ import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import OpenAI from "openai";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { log } from "console";
-import { JsonObject } from "langchain/tools";
+import { NextRequest, NextResponse } from "next/server";
 
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseApiKey = process.env.SUPABASE_API_KEY!;
-const openai = new OpenAI()
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
-if (!supabaseUrl || !supabaseApiKey) {
+const apiKey = process.env.CUSTOM_API_KEY;
+
+if (!supabaseUrl || !supabaseApiKey || !apiKey) {
     throw new Error('SUPABASE_URL and SUPABASE_API_KEY must be defined in the environment variables.');
 }
 
 const supabase: SupabaseClient = createClient(supabaseUrl, supabaseApiKey);
 
+interface scriptInterface {
+    point: number;
+    description: string;
+}
+
+interface imgInterface {
+    imageG: string;
+    imageUrls: string[];
+}
+
+async function imageGen(script: scriptInterface[]): Promise<string | imgInterface> {
+    try {
+        const numberOfImages = 1;
+        const imageSize = '1024x1024'
+        let response: string[] = [];
+
+        // for (const imageGen of script) {
+        //     response.push(await openai.images.generate({
+        //         prompt: imageGen.description,
+        //         n: numberOfImages,
+        //         size: imageSize,
+        //     }).then(data => data.data[0].url || ""))
+        // }
+        for (const imageGen of script) {
+        response.push(
+            await fetch('https://9xlud5ryka.execute-api.ap-south-1.amazonaws.com/default/imagine',
+                {
+                    method: 'POST',
+                    body: JSON.stringify({prompt: imageGen?.description}) ,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': `${apiKey}`
+                    }
+                 }).then(response => response?.json()).then(res=>{
+                    if(res.image_base64){
+                        const req:string = res.image_base64.replace(/\"/g, '');
+                        const data:string = "data:image/png;base64,"+req
+                        return data
+                    }else return "Base 64 image not found"
+                 }))
+                }
+
+        if (response.length > 0) {
+            return { imageG: "Successful generation of image Urls", imageUrls: response };
+        } else {
+            return "No images obtained"
+        }
+    } catch (err) {
+        console.error("Error in the image generation function", err)
+        return "Error in image generation"
+    }
+}
 
 interface payloadProps {
     type: string;
-    prompt: string;
+    prompt: string | { prompt: string, schemaAttr: string } | string[];
 }
-
 
 const sendPayload = async (content: payloadProps): Promise<void> => {
-    await supabase.from("chats_history").insert([{ payload: content }]).then(data => console.log(data))
-}
-interface moviePayload {
-    option: string;
-    choice: string | { name: string, description: string }[] | { scene: string, description: string }[];
+    await supabase.from("chat_history").insert([{ payload: content }]).then(data => console.log(data))
 }
 
-/*
-Explanation
-id: A unique identifier for each movie entry.
-title: The title of the movie.
-genre: The genre of the movie (e.g., Action, Comedy, Drama).
-setting_time_period: The time period in which the movie is set (e.g., Medieval, Modern, Future).
-setting_location: The location where the movie takes place (e.g., City, Village, Space).
-main_characters: A JSONB field to store an array of main characters, each with a brief description (e.g., appearance, personality, role).
-plot_summary: A brief overview of the movie's storyline.
-key_scenes: A JSONB field to store an array of key scenes, each with a detailed description (e.g., Opening Scene, Climax, Resolution).
-theme: The underlying theme or message of the movie (e.g., Good vs. Evil, Love conquers all).
-tone: The overall tone of the movie (e.g., Dark, Light-hearted, Serious, Whimsical).
-special_elements: Any specific elements or props that are crucial to the storyline (e.g., a magical artifact, a futuristic device).
-*/
-
-//This function should try to fill all the details of the last stated row in table and fill all of its attributes so at a time I wont allow user to tell about any other movie
-const sendMoviePayload = async (content: moviePayload): Promise<void> => {
+export const POST = async (req: NextRequest) => {
     try {
-        const lastRow = await supabase.from("movies").select("*").order("created_at", { ascending: false }).limit(1);
-        if (lastRow.error) {
-            console.error("Error fetching last row:", lastRow.error.message);
-            return;
-        }
+        const { message } = await req.json();
 
-        const { data: existingRow } = lastRow;
-        if (!existingRow || existingRow.length === 0) {
-            console.error("No existing rows found in 'movies' table.");
-            const { data, error } = await supabase.from("movies").insert([{
-                [content.option]: content.choice
-            }]);
-            return;
-        }
+        await sendPayload({ type: 'Query', prompt: message });
 
-        const lastId = existingRow[0].id;
-        const updatePayload = { [content.option]: content.choice };
-
-        const { data, error } = await supabase
-            .from("movies")
-            .update(updatePayload)
-            .match({ id: lastId });
-
-        if (error) {
-            console.error("Error updating last row:", error.message);
+        const response: boolean = await scriptGen(message)
+        if (response) {
+            return NextResponse.json({ status: 200 });
         } else {
-            console.log("Data updated successfully:", data);
+            return NextResponse.json("Some Function error", { status: 404 })
         }
     } catch (error) {
-        console.error("Error inserting data:", error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 };
 
-interface rephraser {
-    content: string | { name: string, description: string }[] | { scene: string, description: string }[];
-}
-
-async function rephraserInput(inputString: string): Promise<string> {
-    const gptAnswer = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: [{
-            role: 'system',
-            content: `Extract the details of a movie from the following string. The details should include the title, genre, setting time period, setting location, main characters with descriptions, plot summary, key scenes with descriptions suitable for generating illustrations, theme, tone, and special elements. If any detail is not found, assume a random value. Additionally, generate a 4-point script of the movie from the provided description and include it in the JSON object. Format the extracted details as a JSON object. 
-
-                String:
-                "[inputString]"
-
-            Format:
-            {
-                "title": "[TITLE]",
-                "genre": "[GENRE]",
-                "setting_time_period": "[SETTING_TIME_PERIOD]",
-                "setting_location": "[SETTING_LOCATION]",
-                "main_characters": [
-                    {
-                        "name": "[CHARACTER_NAME]",
-                        "description": "[CHARACTER_DESCRIPTION]"
-                    },...
-                ],
-                "plot_summary": "[PLOT_SUMMARY]",
-                "key_scenes": [
-                    {
-                        "scene": "[SCENE_NAME]",
-                        "description": "[SCENE_DESCRIPTION]"
-                    },...
-                ],
-                "theme": "[THEME]",
-                "tone": "[TONE]",
-                "special_elements": "[SPECIAL_ELEMENTS]"
-            }`
-        }]
-    });
-
-    if(gptAnswer.choices.length > 0 && gptAnswer.choices[0].message?.content){
-        return "Database enteries done";
-    }else{
-        throw new Error('No response from OpenAI API');
+export async function sendMoviesDetailsPayload(type: string | { type: string, id: any }, payload: any): Promise<number | boolean> {
+    try {
+        if (type === 'movie_payload') {
+            const response: any = await supabase.from('movies_details').insert([{ movie_payload: payload }]).select('id');
+            if (response.error) {
+                console.error("Error in inserting data:", response.error);
+                return false;
+            }
+            if (response.data && response.data.length > 0) {
+                const responseId = response.data[0].id;
+                return responseId;
+            } else {
+                console.error("No data returned from the insert operation.");
+                return false;
+            }
+        } else if (typeof type !== 'string' && type.type === 'movie_image_urls') {
+            await supabase.from('movies_details').update({ movie_image_urls: payload }).eq('id', type.id);
+            await sendPayload({ type: 'GPTImages', prompt: payload.imageUrls })
+            return true;
+        } else {
+            return false;
+        }
+    } catch (error) {
+        console.error("Error in sending payload to movies_details:", error);
+        return false;
     }
 }
 
+export async function scriptGen(message: string): Promise<boolean> {
+    try {
+        //Pass this message to generate the movie_story and script array
+        const response = await promptGen(message)
+        if (typeof response === 'string') {
+            console.log("Wrong Response: ", response)
+            return false;
+        } else {
+            console.log("Correct response: ", response)
 
+            await sendPayload({ type: 'GPT', prompt: response?.movie_story })
 
-//This function will generate the script for the images to be generated by DALL.e_2 and this will only have four liners script due to limitation
-const scriptGenerator = async (query: string) => {
-    //I want to generate a string having all the attributes wise details of a particular movie proposed by user
-    //Initially ask the user all the details of movie particularly those specified in the database
-    await rephraserInput(query)
+            //Send Movie data to this function to populate data in movies_details table
+            const rowId: any = await sendMoviesDetailsPayload('movie_payload', response)
 
-
-    const lastQueried = await supabase.from("chat_history").select('*').order("created_at", { ascending: false }).eq('payload.type', 'GPT');
-    //This function should ask the user about all the details and return control to user prompt until he specifically entered all the details for that movie
-    //Here i also have to determine what is the last prompt i asked from user so under its value i hae to sendMoviePayload
-    let lastAsked = "";
-    let requiredResponse = "";
-    sendMoviePayload({ option: lastAsked, choice: requiredResponse })
-
-    //if(database for this movie serial is not fulfilled all of its fields then not progress further)
-    //Then give this response to gpt-3.5-turbo to generate points based script for the movie and then store it in the chat_history table under name script
-    //Then provide that script to dalle model to get images from it, at most will be four images at most for a particular movie
-}
-
-
-const handler = async (req: NextApiRequest, res: NextApiResponse) => {
-    if (req.method === "POST") {
-        const { statement } = req.body;
-        await sendPayload({ type: 'Query', prompt: statement })
-        scriptGenerator(statement)
+            if (typeof rowId === 'number') {
+                const secondaryResponse = await imageGen(response?.script)
+                if (typeof secondaryResponse !== 'string') {
+                    const responseType = await sendMoviesDetailsPayload({ type: 'movie_image_urls', id: rowId }, secondaryResponse)
+                    return responseType ? (true) : (console.log("Error in movie image urls sending"), false);
+                }
+                return (console.log("Error in image generation"), false);
+            } else return (console.log("Error in movie payload sending"), false);
+        }
+    } catch (error) {
+        console.error("Error in scriptGen function", error)
+        return false;
     }
 }
 
-export default handler
+export async function promptGen(message: string): Promise<any> {
+    try {
+        const gptPrompt = await openai.chat.completions.create({
+            model: 'gpt-3.5-turbo',
+            messages: [{
+                role: 'system',
+                content: `You are an assistant that helps users create short movie stories based on their input. The user shall provides details such as title, genre, setting time period, setting location, main characters with descriptions, theme, tone, plot summary, key scenes with descriptions suitable for generating digital illustrations, and special elements in form of string and you have to parse those details from it, but not necessaily all the details will be provided. If the user does not provide certain details, you should randomly generate them to the best of scenario. For movie_story, strictly use the details provided by the user.
+                            Once the movie_story is generated, create a 4-liner script from that movie_story where each point includes a detailed prompt suitable for DALL-E 2 image generation. Each prompt should be standalone and detailed enough for generating specific scenes.
+                            For the response, return a JSON object with two properties:
+                            - movie_story: string (the complete short movie story based upon findings of details from the user input string)
+                            - script: array of objects, each object having:
+                            - point: number (the sequence number of the scene)
+                            - description: string (the detailed prompt for image generation)
+
+                            Your response should never be string and only JSON object, even if you want to ask something, place it in the JSON object as a separate key-value pair.
+                            Here is an example of the expected JSON output:
+                            {
+                            "movie_story": "Once upon a time in a distant galaxy, there was a brave explorer named Zara...",
+                            "script": [
+                                { "point": 1, "description": "A vast galaxy with colorful nebulae and distant stars, highlighting a sleek spaceship zooming through space." },
+                                { "point": 2, "description": "The interior of a futuristic spaceship, with Zara, a courageous explorer, looking at a holographic map." },
+                                { "point": 3, "description": "An alien planet with towering crystal structures and exotic vegetation, with Zara stepping out of her spaceship." },
+                                { "point": 4, "description": "A climactic battle scene between Zara and a menacing alien creature in a crystal cave, with beams of light and dramatic shadows." }
+                            ]
+                            }
+
+                            User's input: ${message}`
+            }]
+        });
+
+        if (gptPrompt.choices.length > 0 && gptPrompt.choices[0].message?.content) {
+            console.log(gptPrompt.choices[0].message)
+            const response: any = await JSON.parse(gptPrompt.choices[0].message?.content)
+            console.log("JSON Response: ", response)
+            return response
+        } else {
+            console.error('No response from OpenAI API');
+            return "";
+        }
+    } catch (err) {
+        console.error("Error in promptGen function: ", err);
+        return "";
+    }
+}

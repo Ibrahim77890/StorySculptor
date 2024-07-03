@@ -5,10 +5,11 @@ interface QueryProps {
 }
 
 const Query = ({content}:QueryProps) => {
+  console.log("Skibidi")
   return (
-    <div className='h-fit w-full flex flex-col px-4'>
-      <p>User</p>
-      <p>{content}</p>
+    <div className='h-fit w-full flex flex-col px-4 py-2'>
+      <p className='text-lg font-semibold'>User</p>
+      <p className='ml-4'>{content}</p>
     </div>
   )
 }
