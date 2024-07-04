@@ -12,14 +12,18 @@
     "@langchain/community": "^0.2.16",
     "@phosphor-icons/react": "^2.1.7",
     "@supabase/supabase-js": "^2.44.2",
+    "cloudinary": "^2.2.0",
+    "framer-motion": "^11.2.12",
     "langchain": "^0.2.8",
     "next": "14.2.4",
+    "next-cloudinary": "^6.6.2",
     "openai": "^4.52.2",
     "phosphor-icons": "^1.4.2",
     "react": "^18",
     "react-dom": "^18",
     "react-markdown": "^9.0.1",
-    "remark-gfm": "^4.0.0"
+    "remark-gfm": "^4.0.0",
+    "sharp": "^0.33.4"
   },
   "devDependencies": {
     "@types/node": "^20",

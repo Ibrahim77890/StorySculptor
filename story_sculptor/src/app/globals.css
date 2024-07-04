@@ -1,6 +1,8 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+@import url('https://fonts.googleapis.com/css2?family=Ubuntu+Sans:ital,wght@0,100..800;1,100..800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Ubuntu+Sans:ital,wght@0,100..800;1,100..800&family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap');
 
 :root {
   --foreground-rgb: 0, 0, 0;
@@ -32,6 +34,11 @@ body {
   }
 }
 
+.black-stroke {
+  -webkit-text-stroke: 1px black; /* For webkit-based browsers (e.g., Chrome, Safari) */
+  stroke: 1px black; /* For other browsers that support the property */
+}
+
 .home {
   @apply flex max-h-screen w-screen flex-col items-center justify-between p-16 gap-4 overflow-y-auto;
 }
@@ -41,13 +48,15 @@ body {
 }
 
 .shared-input {
-  @apply w-full h-12 flex-1 rounded-l-full
+  @apply w-1/4 h-12 flex-1 rounded-l-full bg-transparent
+}
+
+.heading_text {
+  @apply ubuntu-regular
 }
 
 
 
-@import url('https://fonts.googleapis.com/css2?family=Ubuntu+Sans:ital,wght@0,100..800;1,100..800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Ubuntu+Sans:ital,wght@0,100..800;1,100..800&family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap');
 
 .ubuntu-sans-normal {
   font-family: "Ubuntu Sans", sans-serif;

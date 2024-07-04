@@ -4,6 +4,14 @@ import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import OpenAI from "openai";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import {v2 as cloudinary} from 'cloudinary'
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+})
+
 
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseApiKey = process.env.SUPABASE_API_KEY!;
@@ -24,22 +32,21 @@ interface scriptInterface {
 
 interface imgInterface {
     imageG: string;
-    imageUrls: string[];
+    imageUrls: responseInterface[];
 }
+
+interface responseInterface {
+    script: string;
+    imageUrl: string;
+}
+
 
 async function imageGen(script: scriptInterface[]): Promise<string | imgInterface> {
     try {
         const numberOfImages = 1;
         const imageSize = '1024x1024'
-        let response: string[] = [];
+        let response: responseInterface[] = [];
 
-        // for (const imageGen of script) {
-        //     response.push(await openai.images.generate({
-        //         prompt: imageGen.description,
-        //         n: numberOfImages,
-        //         size: imageSize,
-        //     }).then(data => data.data[0].url || ""))
-        // }
         for (const imageGen of script) {
         response.push(
             await fetch('https://9xlud5ryka.execute-api.ap-south-1.amazonaws.com/default/imagine',
@@ -50,12 +57,15 @@ async function imageGen(script: scriptInterface[]): Promise<string | imgInterfac
                         'Content-Type': 'application/json',
                         'x-api-key': `${apiKey}`
                     }
-                 }).then(response => response?.json()).then(res=>{
-                    if(res.image_base64){
+                 }).then(response => response?.json()).then(async res=>{
+                    if (res.image_base64){
                         const req:string = res.image_base64.replace(/\"/g, '');
                         const data:string = "data:image/png;base64,"+req
-                        return data
-                    }else return "Base 64 image not found"
+                        //Apply cloudinary uploading of this image practically there here
+                        const upload_url = (await cloudinary.uploader.upload(data, {upload_preset: 'mango'})).url
+                        console.log("URLS: ",upload_url)
+                        return {script:imageGen.description, imageUrl: upload_url}
+                    }else return {script: imageGen.description, imageUrl:"Base 64 image not found"}
                  }))
                 }
 
@@ -134,6 +144,10 @@ export async function scriptGen(message: string): Promise<boolean> {
         } else {
             console.log("Correct response: ", response)
 
+            if(response?.question){
+                return true;
+            }
+
             await sendPayload({ type: 'GPT', prompt: response?.movie_story })
 
             //Send Movie data to this function to populate data in movies_details table
@@ -161,7 +175,8 @@ export async function promptGen(message: string): Promise<any> {
             messages: [{
                 role: 'system',
                 content: `You are an assistant that helps users create short movie stories based on their input. The user shall provides details such as title, genre, setting time period, setting location, main characters with descriptions, theme, tone, plot summary, key scenes with descriptions suitable for generating digital illustrations, and special elements in form of string and you have to parse those details from it, but not necessaily all the details will be provided. If the user does not provide certain details, you should randomly generate them to the best of scenario. For movie_story, strictly use the details provided by the user.
-                            Once the movie_story is generated, create a 4-liner script from that movie_story where each point includes a detailed prompt suitable for DALL-E 2 image generation. Each prompt should be standalone and detailed enough for generating specific scenes.
+                            In case user doesnot provide anything realted to movies or tries to hold a simple conversation, you can simply greet the user and tell the user your purpose that you simply creates movie posters and image movies based upon user input and tell this inside a JSON object having the only key 'question' in it  and return. Only in this case you donot have to self-generate movie by assumptions, and only in this case you will generate and send JSON object having question key in it, otherwise if any of the above stated details in provided by user then generate the movie_story and script from it. This behaviour is to ensure that you were able to converse with the user. Also, your name StorySculptor and you are a random movie generator web application where you provide specific details about your movie ideas, and watch them come to life as short movies with stunning illustrations and text overlays.
+                            Once the movie_story is generated, create a 3-liner script having first point prompting in detail the Dall-e-2 model to generate a movie poster from that genre, plot summary, movie_story, characters, tone and setting time period containing the title prominently displayed, and remaining two points having each point to include a detailed prompt suitable for DALL-E 2 image generation covering details from start of movie to end of movie and each prompt should prompt Dall-e-2 to generate an image consisting of four images each progressing to movie events. Each prompt should be standalone and detailed enough for generating specific scenes.
                             For the response, return a JSON object with two properties:
                             - movie_story: string (the complete short movie story based upon findings of details from the user input string)
                             - script: array of objects, each object having:
@@ -173,11 +188,9 @@ export async function promptGen(message: string): Promise<any> {
                             {
                             "movie_story": "Once upon a time in a distant galaxy, there was a brave explorer named Zara...",
                             "script": [
-                                { "point": 1, "description": "A vast galaxy with colorful nebulae and distant stars, highlighting a sleek spaceship zooming through space." },
-                                { "point": 2, "description": "The interior of a futuristic spaceship, with Zara, a courageous explorer, looking at a holographic map." },
-                                { "point": 3, "description": "An alien planet with towering crystal structures and exotic vegetation, with Zara stepping out of her spaceship." },
-                                { "point": 4, "description": "A climactic battle scene between Zara and a menacing alien creature in a crystal cave, with beams of light and dramatic shadows." }
-                            ]
+                                { "point": 1, "description": "Create a sci-fi movie poster featuring Zara, a courageous explorer, in a vast galaxy with colorful nebulae, a futuristic spaceship interior, an alien planet with crystal structures, and a climactic battle scene in a crystal cave." },
+                                { "point": 2, "description": "Illustrate the interior of a futuristic spaceship where Zara, a courageous explorer, stands focused, examining a holographic map that displays unknown territories and distant stars." },
+                                { "point": 3, "description": "Visualize an alien planet with towering crystal structures and exotic vegetation. Show Zara stepping out of her spaceship, surrounded by the alien landscape, conveying a sense of wonder and exploration." },
                             }
 
                             User's input: ${message}`
@@ -188,6 +201,9 @@ export async function promptGen(message: string): Promise<any> {
             console.log(gptPrompt.choices[0].message)
             const response: any = await JSON.parse(gptPrompt.choices[0].message?.content)
             console.log("JSON Response: ", response)
+            if(response?.question){
+                sendPayload({type: 'GPT', prompt: response?.question})
+            }
             return response
         } else {
             console.error('No response from OpenAI API');
