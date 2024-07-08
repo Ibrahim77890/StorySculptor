@@ -6,6 +6,10 @@ import "../components/styles.css"
 import CompHandler from '../components/CompHandler'
 import { SupabaseClient, createClient } from '@supabase/supabase-js'
 import ImageCompHandler from '../components/ImageCompHandler'
+import { auth } from '@clerk/nextjs/server'
+import { redirect } from 'next/navigation'
+import { useRouter } from 'next/navigation'
+import { UserButton, useUser } from '@clerk/nextjs'
 
 
 const SUPABASE_URL = "https://msrtvvrxipekveyghgwu.supabase.co"
@@ -23,8 +27,13 @@ interface PromptPayload {
 
 
 const ChatPage = () => {
+
+  const {user,isSignedIn} = useUser();
+  if (!user) redirect("/sign-in");
+
+  // const router = useRouter();
   const [prompt, setPrompt] = useState<string>("");
-  const [chatId, setChatId] = useState<string>("");
+  // const [chatId, setChatId] = useState<string>("");
   const messagesEndRef: MutableRefObject<HTMLDivElement | null> = useRef(null);
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [promptHistory, setPromptHistory] = useState<PromptPayload[]>([]);
@@ -34,6 +43,7 @@ const ChatPage = () => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 0);
   }, [promptHistory]);
+
 
   useEffect(() => {
 
@@ -145,6 +155,9 @@ const ChatPage = () => {
             <div ref={messagesEndRef} />
           </div>
         </div>
+      <div>
+        <UserButton/>
+      </div>
       </div>
     </main>
   )
