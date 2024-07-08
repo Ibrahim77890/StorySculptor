@@ -29,6 +29,13 @@ interface PromptPayload {
 const ChatPage = () => {
 
   const {user,isSignedIn} = useUser();
+  
+  useEffect(()=>{
+    if(!isSignedIn){
+      redirect("/sign-in")
+    }
+  },[isSignedIn])
+
   if (!user) redirect("/sign-in");
 
   // const router = useRouter();

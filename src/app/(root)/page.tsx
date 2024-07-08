@@ -11,6 +11,9 @@ import Image from 'next/image';
 import logo from "../../../public/assets/Story.png"
 import camera from "../../../public/assets/camera.jpg"
 import butterfly from "../../../public/assets/butterfly.png"
+import query1 from "../../../public/assets/quey1.png"
+import query2 from "../../../public/assets/query2.png"
+import query3 from "../../../public/assets/query3.png"
 
 
 const mockUseCases = [
@@ -124,7 +127,7 @@ const Home = () => {
               {/* Greet the Application */}
               <div className='flex flex-row h-60 items-center justify-center  gap-16'>
                 <div className='w-96 h-48 flex-1 flex justify-end'>
-                  <Image src={camera} alt='moon' className='h-60 w-96  rounded-3xl' />
+                  <Image src={query1} alt='moon' className='h-60 w-96  rounded-3xl' />
                 </div>
                 <div className='flex-1 flex'><p className='w-1/2 text-lg'>Provide your thoughts in terms of Movie Title, Genre, Theme, Tone, Setting Place, Plot Summary and Characters involoved in the movie to be precise according to your requirements.</p></div>
               </div>
@@ -133,14 +136,14 @@ const Home = () => {
               <div className='flex flex-row h-60 items-center justify-center  gap-16'>
                 <div className='flex-1 flex justify-end pt-4'><p className='w-1/2 text-lg'>Let AI sculpt your narrative, generating scenes and dialogues dynamically, and generating a final script.</p></div>
                 <div className='w-96 h-48 flex-1'>
-                  <Image src={camera} alt='moon' className='h-60 w-96  rounded-3xl' />
+                  <Image src={query2} alt='moon' className='h-60 w-96  rounded-3xl' />
                 </div>
               </div>
 
               {/* Model will generate the movie posters and your movie scenes alongwith some basic script */}
               <div className='flex flex-row h-60 items-center justify-center gap-16'>
                 <div className='w-96 h-48 flex-1  flex justify-end'>
-                  <Image src={camera} alt='moon' className='h-60 w-96  rounded-3xl' />
+                  <Image src={query3} alt='moon' className='h-60 w-96  rounded-3xl' />
                 </div>
                 <div className='flex-1 flex pt-4'><p className='w-1/2 text-lg'>Finally, Image generation model will help to construct Movie Poster and Movie Scipted scenes which user can download as images.</p></div>
               </div>
@@ -158,7 +161,7 @@ const Home = () => {
             <div className='w-full flex items-center justify-center'>
               <div className='flex flex-wrap gap-4 justify-evenly'>
                 {mockUseCases.map((item, index) => {
-                  return <div key={index} className='h-fit bg-white w-80 shadow-md flex flex-col rounded-xl p-2'>
+                  return <div key={index} className='h-fit bg-white w-96 shadow-md flex flex-col rounded-xl p-2'>
                     <p className='text-blue-700 ubuntu-sans-normal text-lg'>{item.heading}</p>
                     <p className='ubuntu-regular'>{item.content}</p>
                   </div>
